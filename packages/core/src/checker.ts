@@ -922,7 +922,7 @@ export class SubsetChecker {
     // app returns a small override. Partial hand-authored shapes cannot
     // silently drop a token from generated projection or native validation.
     if (!helper || returns?.k !== "struct" || returns.name !== "ThemeDesignTokenOverrides" ||
-        this.table.structs.get(returns.name)?.decl.getSourceFile().fileName !== path.join(path.dirname(sdkCoreModulePath), "theme.ts")) {
+        !this.isSdkDeclaration(this.table.structs.get(returns.name)?.decl, "theme.ts")) {
       this.report("NS1033", "`tokenOverrides` must be a single-Model helper returning `ThemeDesignTokenOverrides` imported from `@native-sdk/core/theme`.", decl.type ?? decl);
     }
   }
@@ -1587,7 +1587,7 @@ export class SubsetChecker {
     const root = this.table.unions.get("Msg");
     const valid = helper !== undefined && decl.parameters.length === 2 &&
       record?.k === "struct" && record.name === "BootImageResult" &&
-      this.table.structs.get(record.name)?.decl.getSourceFile().fileName === path.join(path.dirname(sdkCoreModulePath), "events.ts") &&
+      this.isSdkDeclaration(this.table.structs.get(record.name)?.decl, "events.ts") &&
       returns?.k === "optional" && returns.inner.k === "union" && returns.inner.name !== "Msg" && !!result &&
       result.arms.every(arm => {
         const matching = root?.arms.find(candidate => candidate.tag === arm.tag);
@@ -1608,7 +1608,7 @@ export class SubsetChecker {
     const root = this.table.unions.get("Msg");
     const valid = helper !== undefined && decl.parameters.length === 2 && samples?.k === "slice" &&
       samples.elem.k === "struct" && samples.elem.name === "SliderState" &&
-      this.table.structs.get(samples.elem.name)?.decl.getSourceFile().fileName === path.join(path.dirname(sdkCoreModulePath), "events.ts") &&
+      this.isSdkDeclaration(this.table.structs.get(samples.elem.name)?.decl, "events.ts") &&
       returns?.k === "optional" && returns.inner.k === "union" && returns.inner.name !== "Msg" && !!result &&
       result.arms.every(arm => {
         const matching = root?.arms.find(candidate => candidate.tag === arm.tag);
@@ -1621,7 +1621,7 @@ export class SubsetChecker {
   private checkCanvasHelpers(): void {
     const canonicalRecord = (type: import("./types.ts").ZType, name: string): boolean =>
       type.k === "struct" && type.name === name &&
-      this.table.structs.get(name)?.decl.getSourceFile().fileName === path.join(path.dirname(sdkCoreModulePath), "events.ts");
+      this.isSdkDeclaration(this.table.structs.get(name)?.decl, "events.ts");
     for (const name of ["canvasIcons", "canvasChrome", "canvasChromeSuffix", "canvasAnimations", "canvasFrameMsg"]) {
       const decl = this.entryExportedFunction(name);
       if (decl === null) continue;
@@ -1636,7 +1636,7 @@ export class SubsetChecker {
       } else if (name === "canvasChrome" || name === "canvasChromeSuffix") {
         valid &&= decl.parameters.length === 2 && !!context && canonicalRecord(this.table.resolveTypeNode(context), "CanvasChromeContext") &&
           returns?.k === "slice" && returns.elem.k === "union" && returns.elem.name === "CanvasChromeCommand" &&
-          this.table.unions.get("CanvasChromeCommand")?.decl.getSourceFile().fileName === path.join(path.dirname(sdkCoreModulePath), "events.ts");
+          this.isSdkDeclaration(this.table.unions.get("CanvasChromeCommand")?.decl, "events.ts");
       } else {
         const result = returns?.k === "optional" && returns.inner.k === "union" ? this.table.unions.get(returns.inner.name) : undefined;
         const root = this.table.unions.get("Msg");
@@ -2661,6 +2661,12 @@ export class SubsetChecker {
     if (this.isStringTyped(expr)) return true;
     const t = this.tast.typeOf(expr);
     return t.isUnion() && t.types.every((m) => m.isStringLiteral());
+  }
+
+  private isSdkDeclaration(decl: ts.Node | undefined, module: string): boolean {
+    // TypeScript uses forward slashes even when node:path uses Windows separators.
+    return decl !== undefined && path.resolve(decl.getSourceFile().fileName) ===
+      path.resolve(path.dirname(sdkCoreModulePath), module);
   }
 
   /// The canonical name of a function imported from the intrinsic SDK root,
