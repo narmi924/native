@@ -67,6 +67,7 @@ test "compiled probe retains complete line windows, loss, exit records, clipboar
     native_fx.executor = .fake;
     var native = reference.Model{};
     Host.init(&fx);
+    Host.dispatch(&fx, .{ .target_os = @tagName(@import("builtin").os.tag) });
     try compare(&native, Host.model());
     try viewParity(&native, Host.model());
     reference.update(&native, .start, &native_fx);

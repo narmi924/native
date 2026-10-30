@@ -1862,10 +1862,8 @@ test "a target-less composition owns its surface's keys - and its resolution rel
     } });
     try std.testing.expectEqual(@as(u32, 0), app_state.keydown_count);
 
-    // COMMAND CHORDS stay live mid-composition: input methods never
-    // consume them, so Ctrl+Alt+C here is a genuine shortcut the app
-    // must hear (on Windows alone Ctrl+Alt is AltGr and composes text;
-    // this build treats it as the chord it is on this host).
+    // Ctrl+Alt is AltGr on Windows, so composition retains that key.
+    // On the other hosts this combination is an app shortcut.
     try harness.runtime.dispatchPlatformEvent(app, .{ .gpu_surface_input = .{
         .window_id = 1,
         .label = "canvas",
@@ -1873,7 +1871,19 @@ test "a target-less composition owns its surface's keys - and its resolution rel
         .key = "c",
         .modifiers = .{ .control = true, .option = true },
     } });
-    try std.testing.expectEqual(@as(u32, 1), app_state.keydown_count);
+    const altgr_host = @import("builtin").os.tag == .windows;
+    try std.testing.expectEqual(@as(u32, if (altgr_host) 0 else 1), app_state.keydown_count);
+    // A plain Ctrl chord must still reach the app on Windows.
+    if (altgr_host) {
+        try harness.runtime.dispatchPlatformEvent(app, .{ .gpu_surface_input = .{
+            .window_id = 1,
+            .label = "canvas",
+            .kind = .key_down,
+            .key = "c",
+            .modifiers = .{ .control = true },
+        } });
+        try std.testing.expectEqual(@as(u32, 1), app_state.keydown_count);
+    }
 
     // The commit delivers the composed text and ENDS the ownership: a
     // key_down arriving after the resolution is a genuine keystroke on

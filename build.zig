@@ -3023,7 +3023,7 @@ pub fn build(b: *std.Build) void {
         "examples/calculator/zig-out/package/test-ios-layout/package-manifest.zon",
     };
     for (package_ios_layout_paths) |path| {
-        const check = b.addSystemCommand(&.{ "test", "-f", path });
+        const check = b.addCheckFile(b.path(path), .{});
         check.step.dependOn(&package_ios_layout_run.step);
         package_ios_layout_step.dependOn(&check.step);
         mobile_examples_step.dependOn(&check.step);
@@ -3070,7 +3070,7 @@ pub fn build(b: *std.Build) void {
         "examples/calculator/zig-out/package/test-android-layout/package-manifest.zon",
     };
     for (package_android_layout_paths) |path| {
-        const check = b.addSystemCommand(&.{ "test", "-f", path });
+        const check = b.addCheckFile(b.path(path), .{});
         check.step.dependOn(&package_android_layout_run.step);
         package_android_layout_step.dependOn(&check.step);
         mobile_examples_step.dependOn(&check.step);
@@ -6273,7 +6273,7 @@ fn managedExampleRun(b: *std.Build, cli_exe: *std.Build.Step.Compile, argv_tail:
 fn addLayoutCheckStep(b: *std.Build, group: *std.Build.Step, name: []const u8, description: []const u8, paths: []const []const u8) void {
     const step = b.step(name, description);
     for (paths) |path| {
-        const check = b.addSystemCommand(&.{ "test", "-f", path });
+        const check = b.addCheckFile(b.path(path), .{});
         step.dependOn(&check.step);
         group.dependOn(&check.step);
     }

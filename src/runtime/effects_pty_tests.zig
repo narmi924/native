@@ -332,109 +332,115 @@ test "the replay verdict queue grows past its inline window and stays keyed" {
     try fx.settleReplayFeeds();
 }
 
-test "settle refuses replay write-count divergence in both directions" {
+test "settle refuses unconsumed replay pty write verdicts" {
     // Leftover verdicts: the replayed updates wrote FEWER times than
     // the recording. No checkpoint necessarily moves (nothing consumed
     // the verdict), so only the end-of-journal settle makes it loud.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        try fx.pushReplayPtyWriteVerdict(82, true);
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    try fx.pushReplayPtyWriteVerdict(82, true);
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle refuses replay pty write underflow" {
     // Underflow: the replayed updates wrote MORE times than the
     // recording. The extra write answered optimistically (a
     // fire-and-forget caller ignores it, changing no state), so again
     // only settle catches it.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        fx.ptySpawn(.{ .key = 82, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
-        try testing.expect(fx.ptyWrite(82, "past the recording"));
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    fx.ptySpawn(.{ .key = 82, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
+    try testing.expect(fx.ptyWrite(82, "past the recording"));
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle refuses replay pty writes against a different session" {
     // A write against a DIFFERENT pty than the verdict was recorded
     // for: same count, same result, still divergent input — the keyed
     // comparison catches what a global boolean sequence would pass.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        fx.ptySpawn(.{ .key = 82, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
-        fx.ptySpawn(.{ .key = 83, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
-        try fx.pushReplayPtyWriteVerdict(82, true);
-        try testing.expect(fx.ptyWrite(83, "wrong session"));
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    fx.ptySpawn(.{ .key = 82, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
+    fx.ptySpawn(.{ .key = 83, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
+    try fx.pushReplayPtyWriteVerdict(82, true);
+    try testing.expect(fx.ptyWrite(83, "wrong session"));
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle refuses unconsumed replay clock values" {
     // The clock feed settles by the same rule: a journaled value never
     // consumed (the replayed updates read the clock fewer times)...
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        try fx.pushReplayClock(1_000);
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    try fx.pushReplayClock(1_000);
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle refuses replay clock underflow" {
     // ...and a read past the journaled values (answered 0 optimistically,
     // which need not move any checkpoint) both fail the settle.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        try testing.expectEqual(@as(i64, 0), fx.wallMs());
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    try testing.expectEqual(@as(i64, 0), fx.wallMs());
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle refuses undelivered replay pty output" {
     // A fed result still awaiting delivery: the journal ended before
     // the event that consumed it live — truncation, not success.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        fx.ptySpawn(.{ .key = 85, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
-        try fx.feedPtyOutput(85, "undelivered");
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-        // Delivered, the same feeds settle clean.
-        const msg = fx.takeMsg() orelse return error.TestExpectedMsg;
-        try testing.expectEqualStrings("undelivered", msg.pty.bytes);
-        try fx.settleReplayFeeds();
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    fx.ptySpawn(.{ .key = 85, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
+    try fx.feedPtyOutput(85, "undelivered");
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+    // Delivered, the same feeds settle clean.
+    const msg = fx.takeMsg() orelse return error.TestExpectedMsg;
+    try testing.expectEqualStrings("undelivered", msg.pty.bytes);
+    try fx.settleReplayFeeds();
+}
+
+test "settle refuses undelivered replay lines" {
     // Every fed family settles by the same rule, not just ptys: a fed
     // LINE still queued at the journal's end is the identical
     // truncation, and delivering it settles clean.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        fx.spawn(.{ .key = 86, .argv = &.{"sh"}, .on_line = DirectFx.lineMsg(.line), .on_exit = DirectFx.exitMsg(.exit) });
-        try fx.feedLine(86, "undelivered line");
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-        const msg = fx.takeMsg() orelse return error.TestExpectedMsg;
-        try testing.expectEqualStrings("undelivered line", msg.line.line);
-        try fx.settleReplayFeeds();
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    fx.spawn(.{ .key = 86, .argv = &.{"sh"}, .on_line = DirectFx.lineMsg(.line), .on_exit = DirectFx.exitMsg(.exit) });
+    try fx.feedLine(86, "undelivered line");
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+    const msg = fx.takeMsg() orelse return error.TestExpectedMsg;
+    try testing.expectEqualStrings("undelivered line", msg.line.line);
+    try fx.settleReplayFeeds();
+}
+
+test "settle refuses unconsumed replay environment values" {
     // Journaled environment deliveries never consumed settle by the
     // clock's rule too.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        try fx.pushReplayEnv("appearance", "dark");
-        try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    try fx.pushReplayEnv("appearance", "dark");
+    try testing.expectError(error.ReplayDivergence, fx.settleReplayFeeds());
+}
+
+test "settle accepts exact replay feed consumption" {
     // Exact consumption settles clean.
-    {
-        var fx = DirectFx.init(testing.allocator);
-        defer fx.deinit();
-        fx.armReplay();
-        fx.ptySpawn(.{ .key = 83, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
-        try fx.pushReplayPtyWriteVerdict(83, false);
-        try fx.pushReplayClock(1_000);
-        try testing.expect(!fx.ptyWrite(83, "recorded"));
-        try testing.expectEqual(@as(i64, 1_000), fx.wallMs());
-        try fx.settleReplayFeeds();
-    }
+    var fx = DirectFx.init(testing.allocator);
+    defer fx.deinit();
+    fx.armReplay();
+    fx.ptySpawn(.{ .key = 83, .argv = &.{"sh"}, .on_event = DirectFx.ptyMsg(.pty) });
+    try fx.pushReplayPtyWriteVerdict(83, false);
+    try fx.pushReplayClock(1_000);
+    try testing.expect(!fx.ptyWrite(83, "recorded"));
+    try testing.expectEqual(@as(i64, 1_000), fx.wallMs());
+    try fx.settleReplayFeeds();
 }
 
 test "a fed line against a full queue reports EffectQueueFull, never a silent drop" {

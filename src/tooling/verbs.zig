@@ -588,7 +588,9 @@ test "rebuild explanations persist manifest and source hashes" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
     const root = ".zig-cache/test-rebuild-explain";
-    var cwd = std.Io.Dir.cwd();
+    // Keep an owned directory handle: changing cwd closes Windows' borrowed one.
+    const cwd = try std.Io.Dir.cwd().openDir(io, ".", .{});
+    defer cwd.close(io);
     cwd.deleteTree(io, root) catch {};
     defer cwd.deleteTree(io, root) catch {};
     try cwd.createDirPath(io, root ++ "/src/services");
@@ -623,11 +625,11 @@ test "rebuild explanations persist manifest and source hashes" {
     const second = try explainRebuild(allocator, io);
     defer allocator.free(second);
     try std.testing.expectEqualStrings(first, second);
-    try cwd.writeFile(io, .{ .sub_path = "src/services/work.ts", .data = "// comment\nexport function work(): number { return 1; }\n" });
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = "src/services/work.ts", .data = "// comment\nexport function work(): number { return 1; }\n" });
     const changed = try explainRebuild(allocator, io);
     defer allocator.free(changed);
     try std.testing.expect(!std.mem.eql(u8, first, changed));
-    try cwd.writeFile(io, .{ .sub_path = "app.zon", .data = ".{ .name = \"rebuild-test\", .capabilities = .{\"store\"} }\n" });
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = "app.zon", .data = ".{ .name = \"rebuild-test\", .capabilities = .{\"store\"} }\n" });
     const manifest_changed = try explainRebuild(allocator, io);
     defer allocator.free(manifest_changed);
     try std.testing.expect(!std.mem.eql(u8, changed, manifest_changed));

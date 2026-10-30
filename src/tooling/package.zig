@@ -2563,7 +2563,8 @@ fn drawDmgArrowShape(pixels: []u8, width: usize, height: usize, segments: []cons
 fn dmgFinderScriptAlloc(allocator: std.mem.Allocator, dmg: manifest_tool.DmgMetadata, mount_path: []const u8, app_name: []const u8, background_name: []const u8) ![]u8 {
     const escaped_mount = try appleScriptStringAlloc(allocator, mount_path);
     defer allocator.free(escaped_mount);
-    const background_path = try std.fs.path.join(allocator, &.{ mount_path, ".background", background_name });
+    // Finder consumes a POSIX path even when this script is generated on Windows.
+    const background_path = try std.fmt.allocPrint(allocator, "{s}/.background/{s}", .{ std.mem.trimEnd(u8, mount_path, "/"), background_name });
     defer allocator.free(background_path);
     const escaped_background_path = try appleScriptStringAlloc(allocator, background_path);
     defer allocator.free(escaped_background_path);
@@ -2846,7 +2847,9 @@ test "DMG background discovers an adjacent retina source" {
 
     const retina = (try dmgRetinaBackgroundSourceAlloc(std.testing.allocator, std.testing.io, root, "art/installer.png")).?;
     defer std.testing.allocator.free(retina);
-    try std.testing.expectEqualStrings(root ++ "/art/installer@2x.png", retina);
+    const expected_retina = try std.fs.path.join(std.testing.allocator, &.{ root, "art/installer@2x.png" });
+    defer std.testing.allocator.free(expected_retina);
+    try std.testing.expectEqualStrings(expected_retina, retina);
     const background_name = try dmgBackgroundNameAlloc(std.testing.allocator, "art/installer.png", true);
     defer std.testing.allocator.free(background_name);
     try std.testing.expectEqualStrings("background.tiff", background_name);
@@ -3568,7 +3571,9 @@ test "normal build service host is discovered only for a service-bearing app" {
     try std.testing.expect(try projectHasTypeScriptServices(std.testing.allocator, std.testing.io, root));
     const discovered = (try discoverInstalledServiceBinary(std.testing.allocator, std.testing.io, root, "service-demo", .linux)).?;
     defer std.testing.allocator.free(discovered);
-    try std.testing.expectEqualStrings(root ++ "/zig-out/bin/service-demo_services", discovered);
+    const expected_service = try std.fs.path.join(std.testing.allocator, &.{ root, "zig-out", "bin", "service-demo_services" });
+    defer std.testing.allocator.free(expected_service);
+    try std.testing.expectEqualStrings(expected_service, discovered);
 
     try cwd.deleteTree(std.testing.io, root ++ "/src/services");
     try std.testing.expect(!try projectHasTypeScriptServices(std.testing.allocator, std.testing.io, root));
