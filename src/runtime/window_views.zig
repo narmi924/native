@@ -387,10 +387,12 @@ pub fn RuntimeWindowViews(comptime Runtime: type) type {
                     }
                     const main_label = coordination.equal(policy, view.label, "main");
                     var exists = main_label;
-                    for (self.views[0..self.view_count]) |stored| {
+                    // Runtime views own large inline canvas buffers. Borrow each
+                    // slot so admission never copies those buffers onto the stack.
+                    for (self.views[0..self.view_count]) |*stored| {
                         if (stored.open and stored.window_id == window_id and coordination.equal(policy, stored.label, view.label)) exists = true;
                     }
-                    for (self.webviews[0..self.webview_count]) |stored| {
+                    for (self.webviews[0..self.webview_count]) |*stored| {
                         if (stored.open and stored.window_id == window_id and coordination.equal(policy, stored.label, view.label)) exists = true;
                     }
                     var request = coordination.request(.admission, @as(u32, @intFromBool(duplicate)) | (@as(u32, @intFromBool(exists)) << 1) | (@as(u32, @intFromBool(main_label)) << 2), 0, 0);

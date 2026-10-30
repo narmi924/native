@@ -3752,7 +3752,7 @@ test "ui app autofocus moves the keyboard to a freshly mounted editor through th
     try std.testing.expect(app_state.installed);
 
     var view_index: usize = 0;
-    for (harness.runtime.views[0..harness.runtime.view_count], 0..) |view, index| {
+    for (harness.runtime.views[0..harness.runtime.view_count], 0..) |*view, index| {
         if (std.mem.eql(u8, view.label, autofocus_canvas_label)) view_index = index;
     }
     try std.testing.expectEqual(@as(canvas.ObjectId, 0), harness.runtime.views[view_index].canvas_widget_focused_id);

@@ -637,7 +637,7 @@ test "only admission-tagged file results regenerate" {
 /// time, and hash the PNG.
 fn renderScreenshotHash(runtime: *core.Runtime, policy: replay_progress.Policy, view_label: []const u8, scale: f32) anyerror!u64 {
     var slots: [platform.max_views]replay_progress.Slot = undefined;
-    for (runtime.views[0..runtime.view_count], 0..) |view, i| slots[i] = .{ .open = view.open, .kind = view.kind, .id = view.window_id, .label = view.label };
+    for (runtime.views[0..runtime.view_count], 0..) |*view, i| slots[i] = .{ .open = view.open, .kind = view.kind, .id = view.window_id, .label = view.label };
     const index = replay_progress.plan(policy, .view, .{ .label = view_label, .slots = slots[0..runtime.view_count] }).index orelse return error.ViewNotFound;
     const window_id = runtime.views[index].window_id;
     const allocator = std.heap.page_allocator;

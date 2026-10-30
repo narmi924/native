@@ -336,7 +336,7 @@ test "budget edge: frame text bytes (visible text hits the display-list budget f
 
 fn viewIndex(h: Harness) !usize {
     // The stress scene has exactly one gpu_surface view.
-    for (h.harness.runtime.views[0..h.harness.runtime.view_count], 0..) |view, index| {
+    for (h.harness.runtime.views[0..h.harness.runtime.view_count], 0..) |*view, index| {
         if (std.mem.eql(u8, view.label, canvas_label)) return index;
     }
     return error.ViewNotFound;
