@@ -7,6 +7,8 @@ import { invoke } from "./invocation_fixture.ts";
 assert.ok(process.argv[2], "run with the compiled corewire path (zig build test-corewire-policy)");
 const corewire = path.resolve(process.argv[2]);
 // Captured from the independent native coordinator, before this migration.
+// The reverse-core-outputs profile uses the same-directory entry "facade";
+// restoring only "../facade" recovers its original profile pin.
 // Mirror hashes include the reviewed stateless-runtime API addition.
 // Mirror hashes also include file-scope host facts: `has_windows` and the
 // virtual extent capability, which the model types forward. Removing that

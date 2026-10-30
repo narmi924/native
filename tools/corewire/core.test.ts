@@ -47,6 +47,8 @@ test("nested unions in helper arguments retain their decoder type imports", () =
 });
 // Exact diagnostics and complete generated-file hashes captured from the
 // independent native implementation before replacing its admission rules.
+// Same-directory profile entries use "facade". Replacing only that entry
+// with the old "../facade" spelling recovers every original profile pin.
 // Mirror hashes include the reviewed stateless-runtime API addition.
 // Mirror hashes also include file-scope host facts: `has_windows` and the
 // virtual extent capability, which the model types forward. Removing that

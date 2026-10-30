@@ -55,6 +55,15 @@ for (const name of ["integer", "markup", "wide_msg"]) {
   }));
 }
 
+test("same-directory relative outputs resolve to the emitted facade without an optimization flag", () => withWork(dir => {
+  const input = currentContract("integer");
+  const result = invoke(dir, input, ["--profile", "profile.json", "--facade", "facade.ts"]);
+  assert.equal(result.status, 0, result.stderr);
+  const output = fs.readFileSync(path.join(dir, "profile.json"), "utf8");
+  assert.equal(output, emitProfile(input, "facade.ts", "").output);
+  assert.equal(fs.realpathSync(path.resolve(dir, JSON.parse(output).entry)), fs.realpathSync(path.join(dir, "facade.ts")));
+}));
+
 test("relative entries, Unicode, escaping, optimization, and empty integer slots agree", () => withWork(dir => {
   const input = currentContract("wide_msg");
   input.abi.prefix = "other_";

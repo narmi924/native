@@ -9,6 +9,8 @@ import { intakeCases } from "./intake_cases.ts";
 
 assert.ok(process.argv[2], "run with the compiled corewire path");
 const corewire = path.resolve(process.argv[2]);
+// Same-directory profile entries use "facade". Replacing only that entry
+// with the old "../facade" spelling recovers every original profile pin.
 // Mirror hashes include the reviewed stateless-runtime API addition.
 // Mirror hashes also include file-scope host facts: `has_windows` and the
 // virtual extent capability, which the model types forward. Removing that

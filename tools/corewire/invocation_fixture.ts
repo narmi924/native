@@ -26,7 +26,8 @@ export function invoke(corewire: string, item: InvocationCase): InvocationOutcom
     collect("");
     // realpath can normalize the temporary root; diagnostic semantics use
     // a portable root spelling without discarding the filename or refusal.
-    let diagnostics = result.stderr.replaceAll(fs.realpathSync(dir), ".").replaceAll(dir, ".");
+    let diagnostics = result.stderr.replaceAll(fs.realpathSync(dir), ".").replaceAll(dir, ".")
+      .replace(/\.corewire-tmp\.[0-9a-f]{16}/g, ".corewire-tmp.NONCE");
     if (path.sep === "\\") diagnostics = diagnostics.replaceAll("\\", "/");
     return { status: result.status, diagnostics, files };
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
