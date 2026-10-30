@@ -2121,7 +2121,7 @@ pub fn addAppArtifacts(b: *std.Build, dep: *std.Build.Dependency, app_options: A
     // not just its test failures. Test builds never analyze `main` (the
     // test runner replaces the entry point), so rules that fire inside it
     // — UiApp.create's Model-defaults rule above all — used to ambush at
-    // `native build`, the LAST step in the loop. Compiling this object
+    // `native build`, the LAST step in the loop. Compiling this artifact
     // forces full semantic analysis of the app module, entry point
     // included; nothing links or runs.
     const analysis_root = b.addWriteFiles().add("app_analysis.zig",
@@ -2141,8 +2141,12 @@ pub fn addAppArtifacts(b: *std.Build, dep: *std.Build.Dependency, app_options: A
         .optimize = optimize,
     });
     analysis_mod.addImport("app", test_app_mod);
-    const analysis_obj = b.addObject(.{
+    // COFF cannot merge the core archive and markup/C objects into one
+    // relocatable object, even with emission disabled. A static library
+    // supports those inputs while preserving the same semantic analysis.
+    const analysis_obj = b.addLibrary(.{
         .name = b.fmt("{s}-analysis", .{app_options.name}),
+        .linkage = .static,
         .root_module = analysis_mod,
         .use_llvm = useLlvmWorkaround(target),
     });
